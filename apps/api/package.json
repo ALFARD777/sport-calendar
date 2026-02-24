@@ -1,0 +1,7 @@
+{
+  "name": "api",
+  "private": true,
+  "scripts": {
+    "dev": "dotnet watch --project SportCalendar.Api/SportCalendar.Api.csproj run"
+  }
+}

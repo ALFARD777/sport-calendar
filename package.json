@@ -1,0 +1,16 @@
+{
+  "name": "sport-calendar",
+  "private": true,
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "dotnet watch --project apps/api/SportCalednar.Api run"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.10"
+  }
+}
