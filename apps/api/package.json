@@ -2,6 +2,8 @@
   "name": "api",
   "private": true,
   "scripts": {
-    "dev": "dotnet watch --project SportCalendar.Api/SportCalendar.Api.csproj run"
+    "dev": "dotnet watch --project SportCalendar.Api/SportCalendar.Api.csproj run",
+    "build": "dotnet build SportCalendar.Api/SportCalendar.Api.csproj -c Release",
+    "publish": "dotnet publish SportCalendar.Api/SportCalendar.Api.csproj -c Release"
   }
 }

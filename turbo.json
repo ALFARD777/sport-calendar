@@ -7,7 +7,14 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**", "bin/**", "obj/**"]
+      "outputs": [
+        ".next/**",
+        "dist/**",
+        "bin/**",
+        "obj/**",
+        "SportCalendar.Api/bin/**",
+        "SportCalendar.Api/obj/**"
+      ]
     },
     "lint": {},
     "typecheck": {}
