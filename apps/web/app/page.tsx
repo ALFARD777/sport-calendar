@@ -18,7 +18,6 @@ import {
 import {
   ClipboardEvent,
   ComponentType,
-  FormEvent,
   KeyboardEvent,
   useEffect,
   useMemo,
@@ -442,8 +441,7 @@ export default function Home() {
     })();
   }
 
-  async function handleAddExercise(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleAddExercise() {
     const type = ACTIVITY_TYPES.find((item) => item.id === newType);
     const normalizedTarget = Number(newTarget.replace(",", "."));
     const target = Math.max(normalizedTarget, 1);
@@ -737,10 +735,7 @@ export default function Home() {
             </ul>
           )}
 
-          <form
-            onSubmit={(event) => void handleAddExercise(event)}
-            className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4"
-          >
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <h3 className="mb-4 text-base font-semibold text-slate-900">
               <span className="inline-flex items-center gap-2">
                 <IconPlus size={18} />
@@ -796,13 +791,14 @@ export default function Home() {
               </label>
             </div>
             <button
-              type="submit"
+              type="button"
+              onClick={() => void handleAddExercise()}
               disabled={isSaving}
               className="mt-4 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-500"
             >
               {isSaving ? "Сохраняем..." : "Добавить в день"}
             </button>
-          </form>
+          </section>
         </section>
       </div>
     </main>
