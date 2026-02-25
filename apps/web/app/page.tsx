@@ -114,7 +114,13 @@ const STATUS_ICONS: Record<ExerciseStatus, IconComponent> = {
 };
 
 function isActivityTypeId(value: string): value is ActivityTypeId {
-  return value === "run" || value === "bike" || value === "swim" || value === "yoga" || value === "strength";
+  return (
+    value === "run" ||
+    value === "bike" ||
+    value === "swim" ||
+    value === "yoga" ||
+    value === "strength"
+  );
 }
 
 function toDateKey(date: Date): string {
@@ -227,7 +233,9 @@ function getUnitLabel(type: ActivityType | undefined, value: number): string {
   return type.unitForms[getPluralForm(value)];
 }
 
-function mapApiExercise(item: ExerciseApiItem): { date: string; exercise: Exercise } | null {
+function mapApiExercise(
+  item: ExerciseApiItem,
+): { date: string; exercise: Exercise } | null {
   if (!isActivityTypeId(item.type)) {
     return null;
   }
@@ -250,7 +258,9 @@ function mapApiExercise(item: ExerciseApiItem): { date: string; exercise: Exerci
   };
 }
 
-function groupExercisesByDate(items: ExerciseApiItem[]): Record<string, Exercise[]> {
+function groupExercisesByDate(
+  items: ExerciseApiItem[],
+): Record<string, Exercise[]> {
   const grouped: Record<string, Exercise[]> = {};
 
   for (const item of items) {
@@ -266,6 +276,22 @@ function groupExercisesByDate(items: ExerciseApiItem[]): Record<string, Exercise
   return grouped;
 }
 
+async function readApiError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const payload = (await response.json()) as { message?: string };
+    if (payload?.message) {
+      return payload.message;
+    }
+  } catch {
+    // Ignore JSON parsing errors and use fallback below.
+  }
+
+  return `${fallback} (HTTP ${response.status})`;
+}
+
 export default function Home() {
   const now = useMemo(() => new Date(), []);
   const todayKey = toDateKey(now);
@@ -274,7 +300,9 @@ export default function Home() {
     new Date(now.getFullYear(), now.getMonth(), 1),
   );
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
-  const [exercisesByDay, setExercisesByDay] = useState<Record<string, Exercise[]>>({});
+  const [exercisesByDay, setExercisesByDay] = useState<
+    Record<string, Exercise[]>
+  >({});
   const [newType, setNewType] = useState<ActivityTypeId>("run");
   const [newTarget, setNewTarget] = useState("5");
   const [isLoading, setIsLoading] = useState(false);
@@ -311,7 +339,9 @@ export default function Home() {
         );
 
         if (!response.ok) {
-          throw new Error("Failed to load exercises.");
+          throw new Error(
+            await readApiError(response, "Failed to load exercises."),
+          );
         }
 
         const payload = (await response.json()) as ExerciseApiItem[];
@@ -348,7 +378,9 @@ export default function Home() {
     setExercisesByDay((prev) => ({
       ...prev,
       [selectedDateKey]: (prev[selectedDateKey] ?? []).map((exercise) =>
-        exercise.id === exerciseId ? { ...exercise, progress: nextProgress } : exercise,
+        exercise.id === exerciseId
+          ? { ...exercise, progress: nextProgress }
+          : exercise,
       ),
     }));
 
@@ -361,7 +393,9 @@ export default function Home() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to update exercise progress.");
+          throw new Error(
+            await readApiError(response, "Failed to update exercise progress."),
+          );
         }
 
         const updated = (await response.json()) as ExerciseApiItem;
@@ -376,8 +410,12 @@ export default function Home() {
             exercise.id === mapped.exercise.id ? mapped.exercise : exercise,
           ),
         }));
-      } catch {
-        setErrorMessage("Не удалось сохранить прогресс упражнения.");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? `Не удалось сохранить прогресс упражнения: ${error.message}`
+            : "Не удалось сохранить прогресс упражнения.",
+        );
       }
     })();
   }
@@ -407,7 +445,9 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to add exercise.");
+        throw new Error(
+          await readApiError(response, "Failed to add exercise."),
+        );
       }
 
       const created = (await response.json()) as ExerciseApiItem;
@@ -422,8 +462,12 @@ export default function Home() {
       }));
 
       setNewTarget(String(target));
-    } catch {
-      setErrorMessage("Не удалось добавить упражнение.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? `Не удалось добавить упражнение: ${error.message}`
+          : "Не удалось добавить упражнение.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -540,7 +584,9 @@ export default function Home() {
                     isSelected
                       ? "border-amber-400 ring-2 ring-amber-300/70"
                       : "ring-0",
-                    isToday ? "outline-2 outline-offset-2 outline-cyan-500" : "",
+                    isToday
+                      ? "outline-2 outline-offset-2 outline-cyan-500"
+                      : "",
                   ].join(" ")}
                 >
                   <div className="flex justify-between">
