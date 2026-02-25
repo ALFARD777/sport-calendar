@@ -25,6 +25,9 @@ import {
   useState,
 } from "react";
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "/api";
+
 type ActivityTypeId = "run" | "bike" | "swim" | "yoga" | "strength";
 type ExerciseStatus = "planned" | "in_progress" | "done" | "skipped";
 type IconComponent = ComponentType<{
@@ -362,7 +365,7 @@ export default function Home() {
         setErrorMessage(null);
 
         const response = await axios.get<ExerciseApiItem[]>(
-          `/api/exercises?from=${encodeURIComponent(monthFromKey)}&to=${encodeURIComponent(monthToKey)}`,
+          `${API_BASE_URL}/exercises?from=${encodeURIComponent(monthFromKey)}&to=${encodeURIComponent(monthToKey)}`,
         );
         const payload = response.data;
         if (!isCancelled) {
@@ -409,7 +412,7 @@ export default function Home() {
     void (async () => {
       try {
         const response = await axios.patch<ExerciseApiItem>(
-          `/api/exercises/${exerciseId}/progress`,
+          `${API_BASE_URL}/exercises/${exerciseId}/progress`,
           { progress: nextProgress },
           { headers: { "Content-Type": "application/json" } },
         );
@@ -448,7 +451,7 @@ export default function Home() {
       setErrorMessage(null);
 
       const response = await axios.post<ExerciseApiItem>(
-        "/api/exercises",
+        `${API_BASE_URL}/exercises`,
         {
           date: selectedDateKey,
           type: type.id,
@@ -719,7 +722,13 @@ export default function Home() {
             </ul>
           )}
 
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <form
+            className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAddExercise();
+            }}
+          >
             <h3 className="mb-4 text-base font-semibold text-slate-900">
               <span className="inline-flex items-center gap-2">
                 <IconPlus size={18} />
@@ -775,14 +784,13 @@ export default function Home() {
               </label>
             </div>
             <button
-              type="button"
-              onClick={() => void handleAddExercise()}
+              type="submit"
               disabled={isSaving}
               className="mt-4 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-500"
             >
               {isSaving ? "Сохраняем..." : "Добавить в день"}
             </button>
-          </section>
+          </form>
         </section>
       </div>
     </main>
