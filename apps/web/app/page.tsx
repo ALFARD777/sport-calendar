@@ -18,6 +18,7 @@ import {
 import {
   ClipboardEvent,
   ComponentType,
+  FormEvent,
   KeyboardEvent,
   useEffect,
   useMemo,
@@ -441,7 +442,7 @@ export default function Home() {
     })();
   }
 
-  async function handleAddExercise(event: SubmitEvent) {
+  async function handleAddExercise(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const type = ACTIVITY_TYPES.find((item) => item.id === newType);
     const normalizedTarget = Number(newTarget.replace(",", "."));
@@ -737,9 +738,7 @@ export default function Home() {
           )}
 
           <form
-            onSubmit={(event) =>
-              void handleAddExercise(event.nativeEvent as SubmitEvent)
-            }
+            onSubmit={(event) => void handleAddExercise(event)}
             className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4"
           >
             <h3 className="mb-4 text-base font-semibold text-slate-900">
