@@ -15,6 +15,7 @@ import {
   IconX,
   IconYoga,
 } from "@tabler/icons-react";
+import axios from "axios";
 import {
   ClipboardEvent,
   ComponentType,
@@ -276,17 +277,16 @@ function groupExercisesByDate(
   return grouped;
 }
 
-async function readApiError(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      message?: string;
-      title?: string;
-      detail?: string;
-      errors?: Record<string, string[]>;
-    };
+function readApiError(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as
+      | {
+          message?: string;
+          title?: string;
+          detail?: string;
+          errors?: Record<string, string[]>;
+        }
+      | undefined;
 
     if (payload?.message) {
       return payload.message;
@@ -306,11 +306,17 @@ async function readApiError(
         return firstError;
       }
     }
-  } catch {
-    // Ignore JSON parsing errors and use fallback below.
+
+    if (error.response?.status) {
+      return `${fallback} (HTTP ${error.response.status})`;
+    }
   }
 
-  return `${fallback} (HTTP ${response.status})`;
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export default function Home() {
@@ -355,23 +361,18 @@ export default function Home() {
         setIsLoading(true);
         setErrorMessage(null);
 
-        const response = await fetch(
+        const response = await axios.get<ExerciseApiItem[]>(
           `/api/exercises?from=${encodeURIComponent(monthFromKey)}&to=${encodeURIComponent(monthToKey)}`,
         );
-
-        if (!response.ok) {
-          throw new Error(
-            await readApiError(response, "Failed to load exercises."),
-          );
-        }
-
-        const payload = (await response.json()) as ExerciseApiItem[];
+        const payload = response.data;
         if (!isCancelled) {
           setExercisesByDay(groupExercisesByDate(payload));
         }
-      } catch {
+      } catch (error) {
         if (!isCancelled) {
-          setErrorMessage("Не удалось загрузить упражнения из базы данных.");
+          setErrorMessage(
+            `Не удалось загрузить упражнения из базы данных: ${readApiError(error, "Failed to load exercises.")}`,
+          );
         }
       } finally {
         if (!isCancelled) {
@@ -407,19 +408,12 @@ export default function Home() {
 
     void (async () => {
       try {
-        const response = await fetch(`/api/exercises/${exerciseId}/progress`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ progress: nextProgress }),
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            await readApiError(response, "Failed to update exercise progress."),
-          );
-        }
-
-        const updated = (await response.json()) as ExerciseApiItem;
+        const response = await axios.patch<ExerciseApiItem>(
+          `/api/exercises/${exerciseId}/progress`,
+          { progress: nextProgress },
+          { headers: { "Content-Type": "application/json" } },
+        );
+        const updated = response.data;
         const mapped = mapApiExercise(updated);
         if (!mapped) {
           return;
@@ -433,9 +427,7 @@ export default function Home() {
         }));
       } catch (error) {
         setErrorMessage(
-          error instanceof Error
-            ? `Не удалось сохранить прогресс упражнения: ${error.message}`
-            : "Не удалось сохранить прогресс упражнения.",
+          `Не удалось сохранить прогресс упражнения: ${readApiError(error, "Failed to update exercise progress.")}`,
         );
       }
     })();
@@ -455,24 +447,18 @@ export default function Home() {
       setIsSaving(true);
       setErrorMessage(null);
 
-      const response = await fetch("/api/exercises", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await axios.post<ExerciseApiItem>(
+        "/api/exercises",
+        {
           date: selectedDateKey,
           type: type.id,
           title: `${type.label} тренировка`,
           target,
-        }),
-      });
+        },
+        { headers: { "Content-Type": "application/json" } },
+      );
 
-      if (!response.ok) {
-        throw new Error(
-          await readApiError(response, "Failed to add exercise."),
-        );
-      }
-
-      const created = (await response.json()) as ExerciseApiItem;
+      const created = response.data;
       const mapped = mapApiExercise(created);
       if (!mapped) {
         throw new Error("Created payload has invalid format.");
@@ -486,9 +472,7 @@ export default function Home() {
       setNewTarget(String(target));
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? `Не удалось добавить упражнение: ${error.message}`
-          : "Не удалось добавить упражнение.",
+        `Не удалось добавить упражнение: ${readApiError(error, "Failed to add exercise.")}`,
       );
     } finally {
       setIsSaving(false);
