@@ -721,9 +721,6 @@ export default function Home() {
                           aria-label={`Удалить упражнение ${exercise.title}`}
                         >
                           <IconTrash size={16} />
-                          {deletingExerciseId === exercise.id
-                            ? "Удаление..."
-                            : "Удалить"}
                         </button>
                       </div>
                     </div>
