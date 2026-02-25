@@ -8,7 +8,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "dotnet watch --project apps/api/SportCalednar.Api run"
+    "dev:api": "dotnet watch --project apps/api/SportCalendar.Api/SportCalendar.Api.csproj run"
   },
   "devDependencies": {
     "turbo": "^2.8.10"

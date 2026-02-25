@@ -19,6 +19,7 @@ import {
   ClipboardEvent,
   ComponentType,
   KeyboardEvent,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -47,6 +48,15 @@ type ActivityType = {
 type Exercise = {
   id: string;
   type: ActivityTypeId;
+  title: string;
+  target: number;
+  progress: number;
+};
+
+type ExerciseApiItem = {
+  id: string;
+  date: string;
+  type: string;
   title: string;
   target: number;
   progress: number;
@@ -103,6 +113,10 @@ const STATUS_ICONS: Record<ExerciseStatus, IconComponent> = {
   skipped: IconX,
 };
 
+function isActivityTypeId(value: string): value is ActivityTypeId {
+  return value === "run" || value === "bike" || value === "swim" || value === "yoga" || value === "strength";
+}
+
 function toDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -151,75 +165,6 @@ function buildMonthDays(monthDate: Date): Date[] {
     day.setDate(calendarStart.getDate() + index);
     return day;
   });
-}
-
-function getSeedExercises(today: Date): Record<string, Exercise[]> {
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const twoDaysAgo = new Date(today);
-  twoDaysAgo.setDate(today.getDate() - 2);
-  const lastWeek = new Date(today);
-  lastWeek.setDate(today.getDate() - 7);
-
-  return {
-    [toDateKey(today)]: [
-      {
-        id: "today-1",
-        type: "run",
-        title: "Легкий бег",
-        target: 6,
-        progress: 4.2,
-      },
-      {
-        id: "today-2",
-        type: "strength",
-        title: "Приседания",
-        target: 15,
-        progress: 12,
-      },
-    ],
-    [toDateKey(yesterday)]: [
-      {
-        id: "yesterday-1",
-        type: "bike",
-        title: "Кардио на велосипеде",
-        target: 12,
-        progress: 12,
-      },
-      {
-        id: "yesterday-2",
-        type: "yoga",
-        title: "Восстановительная йога",
-        target: 25,
-        progress: 0,
-      },
-    ],
-    [toDateKey(twoDaysAgo)]: [
-      {
-        id: "two-days-1",
-        type: "swim",
-        title: "Техника плавания",
-        target: 40,
-        progress: 32,
-      },
-    ],
-    [toDateKey(lastWeek)]: [
-      {
-        id: "week-1",
-        type: "run",
-        title: "Интервалы",
-        target: 8,
-        progress: 8,
-      },
-      {
-        id: "week-2",
-        type: "strength",
-        title: "Жим гантелей",
-        target: 10,
-        progress: 10,
-      },
-    ],
-  };
 }
 
 function getExerciseStatus(
@@ -282,6 +227,45 @@ function getUnitLabel(type: ActivityType | undefined, value: number): string {
   return type.unitForms[getPluralForm(value)];
 }
 
+function mapApiExercise(item: ExerciseApiItem): { date: string; exercise: Exercise } | null {
+  if (!isActivityTypeId(item.type)) {
+    return null;
+  }
+
+  const target = Number(item.target);
+  const progress = Number(item.progress);
+  if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(progress)) {
+    return null;
+  }
+
+  return {
+    date: item.date,
+    exercise: {
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      target,
+      progress: Math.max(0, progress),
+    },
+  };
+}
+
+function groupExercisesByDate(items: ExerciseApiItem[]): Record<string, Exercise[]> {
+  const grouped: Record<string, Exercise[]> = {};
+
+  for (const item of items) {
+    const mapped = mapApiExercise(item);
+    if (!mapped) {
+      continue;
+    }
+
+    grouped[mapped.date] ??= [];
+    grouped[mapped.date].push(mapped.exercise);
+  }
+
+  return grouped;
+}
+
 export default function Home() {
   const now = useMemo(() => new Date(), []);
   const todayKey = toDateKey(now);
@@ -290,15 +274,67 @@ export default function Home() {
     new Date(now.getFullYear(), now.getMonth(), 1),
   );
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
-  const [exercisesByDay, setExercisesByDay] = useState<
-    Record<string, Exercise[]>
-  >(() => getSeedExercises(now));
+  const [exercisesByDay, setExercisesByDay] = useState<Record<string, Exercise[]>>({});
   const [newType, setNewType] = useState<ActivityTypeId>("run");
   const [newTarget, setNewTarget] = useState("5");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const monthDays = useMemo(() => buildMonthDays(monthCursor), [monthCursor]);
+  const monthFromKey = monthDays.length > 0 ? toDateKey(monthDays[0]) : "";
+  const monthToKey =
+    monthDays.length > 0 ? toDateKey(monthDays[monthDays.length - 1]) : "";
+
   const selectedDate = fromDateKey(selectedDateKey);
   const selectedExercises = exercisesByDay[selectedDateKey] ?? [];
+  const targetPreviewValue = Number(newTarget.replace(",", "."));
+  const unitPreviewValue =
+    Number.isFinite(targetPreviewValue) && targetPreviewValue > 0
+      ? targetPreviewValue
+      : 1;
+
+  useEffect(() => {
+    if (!monthFromKey || !monthToKey) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function loadMonthExercises() {
+      try {
+        setIsLoading(true);
+        setErrorMessage(null);
+
+        const response = await fetch(
+          `/api/exercises?from=${encodeURIComponent(monthFromKey)}&to=${encodeURIComponent(monthToKey)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load exercises.");
+        }
+
+        const payload = (await response.json()) as ExerciseApiItem[];
+        if (!isCancelled) {
+          setExercisesByDay(groupExercisesByDate(payload));
+        }
+      } catch {
+        if (!isCancelled) {
+          setErrorMessage("Не удалось загрузить упражнения из базы данных.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadMonthExercises();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [monthFromKey, monthToKey]);
 
   function shiftMonth(step: number) {
     setMonthCursor(
@@ -307,15 +343,46 @@ export default function Home() {
   }
 
   function handleProgressChange(exerciseId: string, progress: number) {
+    const nextProgress = Math.max(progress, 0);
+
     setExercisesByDay((prev) => ({
       ...prev,
       [selectedDateKey]: (prev[selectedDateKey] ?? []).map((exercise) =>
-        exercise.id === exerciseId ? { ...exercise, progress } : exercise,
+        exercise.id === exerciseId ? { ...exercise, progress: nextProgress } : exercise,
       ),
     }));
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/exercises/${exerciseId}/progress`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ progress: nextProgress }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update exercise progress.");
+        }
+
+        const updated = (await response.json()) as ExerciseApiItem;
+        const mapped = mapApiExercise(updated);
+        if (!mapped) {
+          return;
+        }
+
+        setExercisesByDay((prev) => ({
+          ...prev,
+          [mapped.date]: (prev[mapped.date] ?? []).map((exercise) =>
+            exercise.id === mapped.exercise.id ? mapped.exercise : exercise,
+          ),
+        }));
+      } catch {
+        setErrorMessage("Не удалось сохранить прогресс упражнения.");
+      }
+    })();
   }
 
-  function handleAddExercise(event: SubmitEvent) {
+  async function handleAddExercise(event: SubmitEvent) {
     event.preventDefault();
     const type = ACTIVITY_TYPES.find((item) => item.id === newType);
     const target = Math.max(Number(newTarget), 1);
@@ -324,18 +391,42 @@ export default function Home() {
       return;
     }
 
-    const exercise: Exercise = {
-      id: `${selectedDateKey}-${Date.now()}`,
-      type: type.id,
-      title: `${type.label} тренировка`,
-      target,
-      progress: 0,
-    };
+    try {
+      setIsSaving(true);
+      setErrorMessage(null);
 
-    setExercisesByDay((prev) => ({
-      ...prev,
-      [selectedDateKey]: [...(prev[selectedDateKey] ?? []), exercise],
-    }));
+      const response = await fetch("/api/exercises", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: selectedDateKey,
+          type: type.id,
+          title: `${type.label} тренировка`,
+          target,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to add exercise.");
+      }
+
+      const created = (await response.json()) as ExerciseApiItem;
+      const mapped = mapApiExercise(created);
+      if (!mapped) {
+        throw new Error("Created payload has invalid format.");
+      }
+
+      setExercisesByDay((prev) => ({
+        ...prev,
+        [mapped.date]: [...(prev[mapped.date] ?? []), mapped.exercise],
+      }));
+
+      setNewTarget(String(target));
+    } catch {
+      setErrorMessage("Не удалось добавить упражнение.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleTargetInputKeyDown(
@@ -442,16 +533,14 @@ export default function Home() {
                   type="button"
                   onClick={() => setSelectedDateKey(key)}
                   className={[
-                    "relative min-h-19.5 cursor-pointer rounded-2xl border p-2 text-left transition sm:min-h-23 flex justify-between flex-col",
+                    "relative flex min-h-19.5 cursor-pointer flex-col justify-between rounded-2xl border p-2 text-left transition sm:min-h-23",
                     isCurrentMonth
                       ? "border-slate-200 bg-white hover:border-slate-400"
                       : "border-slate-100 bg-slate-50/60 text-slate-400",
                     isSelected
                       ? "border-amber-400 ring-2 ring-amber-300/70"
                       : "ring-0",
-                    isToday
-                      ? "outline-2 outline-offset-2 outline-cyan-500"
-                      : "",
+                    isToday ? "outline-2 outline-offset-2 outline-cyan-500" : "",
                   ].join(" ")}
                 >
                   <div className="flex justify-between">
@@ -485,7 +574,17 @@ export default function Home() {
             </h2>
           </header>
 
-          {selectedExercises.length === 0 ? (
+          {errorMessage && (
+            <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {errorMessage}
+            </p>
+          )}
+
+          {isLoading ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+              Загружаем упражнения...
+            </p>
+          ) : selectedExercises.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
               На этот день пока нет упражнений. Добавьте активность ниже.
             </p>
@@ -570,7 +669,7 @@ export default function Home() {
 
           <form
             onSubmit={(event) =>
-              handleAddExercise(event.nativeEvent as SubmitEvent)
+              void handleAddExercise(event.nativeEvent as SubmitEvent)
             }
             className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4"
           >
@@ -592,7 +691,7 @@ export default function Home() {
                 >
                   {ACTIVITY_TYPES.map((type) => (
                     <option key={type.id} value={type.id}>
-                      {type.label} ({getUnitLabel(type, 2)})
+                      {type.label} ({getUnitLabel(type, unitPreviewValue)})
                     </option>
                   ))}
                 </select>
@@ -630,9 +729,10 @@ export default function Home() {
             </div>
             <button
               type="submit"
-              className="mt-4 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+              disabled={isSaving}
+              className="mt-4 w-full cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-500"
             >
-              Добавить в день
+              {isSaving ? "Сохраняем..." : "Добавить в день"}
             </button>
           </form>
         </section>
