@@ -281,9 +281,30 @@ async function readApiError(
   fallback: string,
 ): Promise<string> {
   try {
-    const payload = (await response.json()) as { message?: string };
+    const payload = (await response.json()) as {
+      message?: string;
+      title?: string;
+      detail?: string;
+      errors?: Record<string, string[]>;
+    };
+
     if (payload?.message) {
       return payload.message;
+    }
+
+    if (payload?.detail) {
+      return payload.detail;
+    }
+
+    if (payload?.title) {
+      return payload.title;
+    }
+
+    if (payload?.errors) {
+      const firstError = Object.values(payload.errors).flat()[0];
+      if (firstError) {
+        return firstError;
+      }
     }
   } catch {
     // Ignore JSON parsing errors and use fallback below.
@@ -423,9 +444,11 @@ export default function Home() {
   async function handleAddExercise(event: SubmitEvent) {
     event.preventDefault();
     const type = ACTIVITY_TYPES.find((item) => item.id === newType);
-    const target = Math.max(Number(newTarget), 1);
+    const normalizedTarget = Number(newTarget.replace(",", "."));
+    const target = Math.max(normalizedTarget, 1);
 
-    if (!type || Number.isNaN(target)) {
+    if (!type || !Number.isFinite(normalizedTarget)) {
+      setErrorMessage("Цель упражнения должна быть числом.");
       return;
     }
 
