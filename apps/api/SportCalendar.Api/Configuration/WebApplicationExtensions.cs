@@ -9,6 +9,12 @@ public static class WebApplicationExtensions
 {
     public static WebApplication UseApiPipeline(this WebApplication app)
     {
+        var allowedOrigins = app.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        if (allowedOrigins.Length > 0)
+        {
+            app.UseCors("WebClient");
+        }
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();

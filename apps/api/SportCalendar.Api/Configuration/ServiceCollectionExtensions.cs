@@ -11,6 +11,17 @@ public static class ServiceCollectionExtensions
     {
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
+        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        if (allowedOrigins.Length > 0)
+        {
+            services.AddCors(options =>
+            {
+                options.AddPolicy("WebClient", policy =>
+                    policy.WithOrigins(allowedOrigins)
+                        .AllowAnyHeader()
+                        .AllowAnyMethod());
+            });
+        }
 
         var connectionString = configuration.GetConnectionString("Postgres");
         if (string.IsNullOrWhiteSpace(connectionString))
