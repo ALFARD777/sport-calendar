@@ -29,6 +29,10 @@ public static class ExerciseEndpoints
             .WithName("UpdateExerciseProgress")
             .WithOpenApi();
 
+        group.MapDelete("/{id:guid}", DeleteExercise)
+            .WithName("DeleteExercise")
+            .WithOpenApi();
+
         return app;
     }
 
@@ -210,6 +214,23 @@ public static class ExerciseEndpoints
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(ToResponse(exercise));
+    }
+
+    private static async Task<IResult> DeleteExercise(
+        Guid id,
+        SportCalendarDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var exercise = await db.Exercises.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (exercise is null)
+        {
+            return TypedResults.NotFound(new { message = "Exercise not found." });
+        }
+
+        db.Exercises.Remove(exercise);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.NoContent();
     }
 
     private static ExerciseResponse ToResponse(Exercise exercise)

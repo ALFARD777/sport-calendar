@@ -11,6 +11,7 @@ import {
   IconPlus,
   IconSwimming,
   IconTargetArrow,
+  IconTrash,
   IconTreadmill,
   IconX,
   IconYoga,
@@ -337,6 +338,9 @@ export default function Home() {
   const [newTarget, setNewTarget] = useState("5");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingExerciseId, setDeletingExerciseId] = useState<string | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const monthDays = useMemo(() => buildMonthDays(monthCursor), [monthCursor]);
@@ -455,7 +459,7 @@ export default function Home() {
         {
           date: selectedDateKey,
           type: type.id,
-          title: `${type.label} тренировка`,
+          title: type.label,
           target,
         },
         { headers: { "Content-Type": "application/json" } },
@@ -479,6 +483,28 @@ export default function Home() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteExercise(exerciseId: string) {
+    try {
+      setDeletingExerciseId(exerciseId);
+      setErrorMessage(null);
+
+      await axios.delete(`${API_BASE_URL}/exercises/${exerciseId}`);
+
+      setExercisesByDay((prev) => ({
+        ...prev,
+        [selectedDateKey]: (prev[selectedDateKey] ?? []).filter(
+          (exercise) => exercise.id !== exerciseId,
+        ),
+      }));
+    } catch (error) {
+      setErrorMessage(
+        `Не удалось удалить упражнение: ${readApiError(error, "Failed to delete exercise.")}`,
+      );
+    } finally {
+      setDeletingExerciseId(null);
     }
   }
 
@@ -682,9 +708,23 @@ export default function Home() {
                           {unit}
                         </p>
                       </div>
-                      <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                        <StatusIcon size={16} />
-                        {STATUS_LABELS[status]}
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                          <StatusIcon size={16} />
+                          {STATUS_LABELS[status]}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteExercise(exercise.id)}
+                          disabled={deletingExerciseId === exercise.id}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          aria-label={`Удалить упражнение ${exercise.title}`}
+                        >
+                          <IconTrash size={16} />
+                          {deletingExerciseId === exercise.id
+                            ? "Удаление..."
+                            : "Удалить"}
+                        </button>
                       </div>
                     </div>
 
